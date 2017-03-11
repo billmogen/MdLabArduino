@@ -1,5 +1,6 @@
 
 #include "WeatherDev.h"
+#include <Wire.h>
 
 WeatherDev::WeatherDev(uint8_t sunPin, uint8_t rainPin, uint8_t windDirectionPin, uint8_t windSpeedPin, uint8_t uvPin) {
 	_sunPin = sunPin;
@@ -16,11 +17,13 @@ WeatherDev::WeatherDev(uint8_t sunPin, uint8_t rainPin, uint8_t windDirectionPin
 	//oldWindSignalCount = 0;
 	//currentWindSignalCount = 0;
 	uvLight = 0;
+	sunLux = 0;
 
 }
 void WeatherDev::begin() {
 
-	pinMode(_sunPin, INPUT);
+	Wire.begin();
+	//pinMode(_sunPin, INPUT_PULLUP);
 	pinMode(_rainPin, INPUT_PULLUP);
 	pinMode(_windSpeedPin, INPUT_PULLUP); //pd2 int0 or pd3 int1
 
@@ -101,3 +104,29 @@ uint8_t WeatherDev::getUvLight() {
 	uvLight = analogRead(_uvPin);
 }
 
+void WeatherDev::BH1750_Init(uint8_t address) {
+	Wire.beginTransmission(address);
+	Wire.write(0x10);//1lx reolution 120ms
+  	Wire.endTransmission();
+}
+
+uint16_t WeatherDev::getSunLux() {
+	uint8_t buff[2];
+	int i=0;
+
+	BH1750_Init(BH1750ADDR);
+
+  	Wire.beginTransmission(BH1750ADDR);
+	Wire.requestFrom(BH1750ADDR, 2);
+	while(Wire.available()) {
+
+    	buff[i] = Wire.read();  // receive one byte
+    	i++;
+  	}
+	Wire.endTransmission();
+	if(i == 2){
+	    sunLux = ((buff[0]<<8)|buff[1])/1.2;
+	}
+
+	return sunLux;
+}

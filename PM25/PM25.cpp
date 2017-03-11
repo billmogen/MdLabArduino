@@ -32,9 +32,9 @@ void PM25::setDustDensity(boolean valueType) {
 	digitalWrite(_ledPowerPin, LOW);
 	delayMicroseconds(SLEEPTIME);
 
-	Serial.print("Voltage: ");
-	Serial.print(voMeasured);
-	Serial.println();
+	// Serial.print("Voltage: ");
+	// Serial.print(voMeasured);
+	// Serial.println();
 	if(valueType){
 		if(voMeasured > 120.47){
 			calcVoltage = voMeasured * (5000.0 / 1024.0);

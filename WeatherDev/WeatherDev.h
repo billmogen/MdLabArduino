@@ -8,7 +8,7 @@
 #endif
 
 #define HARFPERIMETER 14
-
+#define BH1750ADDR    0x23
 class WeatherDev {
 private:
 	uint8_t _sunPin, _rainPin, _windDirectionPin, _windSpeedPin, _uvPin;
@@ -19,6 +19,7 @@ private:
 	//uint16_t currentWindSignalCount;  //this circle record value
 	uint16_t windSpeed;
 	uint16_t uvLight;
+	uint16_t sunLux;
 
 	enum windDirection {
 		east,
@@ -54,6 +55,8 @@ public:
 	uint16_t getWindSpeed() { return windSpeed; };
 	uint16_t getWindSignalCount() { return windSignalCount; };
 	uint8_t getUvLight();
+	void BH1750_Init(uint8_t address);
+	uint16_t getSunLux();
 
 };
 

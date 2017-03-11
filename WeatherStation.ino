@@ -14,18 +14,18 @@
 
 #define DHTPIN      7   // D7: PD7  what pin we're connected to
 #define PM25DPIN    4   // D4: PD4  PM2.5 led power control pin
-#define PM25APIN    0   // A0: PC0  PM2.5 voltage sample pin 
-#define SUNPIN      1   // A2: PC2  Weatherdev sunshine sample pin 
+#define PM25APIN    A7   // A2: PC2  PM2.5 voltage sample pin 
+#define SUNPIN      A3   // A2: PC3  Weatherdev sunshine sample pin 
 #define RAINPIN     3   // D3: PD3  Weatherdev raincollect sample pin 
-#define WINDDIRPIN  6   // A6: PC6  Weatherdev winddirection sample pin 
+#define WINDDIRPIN  A6   // A6: PC6  Weatherdev winddirection sample pin 
 #define WINDSPDPIN  2   // D2: PD2  Weatherdev windspeed sample pin 
-#define UVPIN       2	// A1: PC1  Weatherdev uvLight sample pin 
+#define UVPIN       A2	// A7: PC7  Weatherdev uvLight sample pin 
 
 // Uncomment whatever type you're using!
 #define DHTTYPE DHT11   // DHT 11 
 
 #define MSGMAXRCVLEN 6
-#define MSGMAXSENTLEN 20
+#define MSGMAXSENTLEN 22
 
 SoftwareSerial mySerial(8, 9); //rx tx
 
@@ -35,7 +35,7 @@ WeatherDev weatherDev(SUNPIN, RAINPIN, WINDDIRPIN, WINDSPDPIN, UVPIN);
 Adafruit_BMP280 bmp280;
 
 
-//uint8_t rcvMsgBuf[MSGMAXRCVLEN];
+uint8_t rcvMsgBuf[MSGMAXRCVLEN];
 uint8_t sentMsgBuf[MSGMAXSENTLEN];
 uint8_t updateFlag = 0;
 unsigned long sentTime = 0;
@@ -50,6 +50,7 @@ struct WeatherStationMsg
 	uint8_t sWindDirection;
 	uint8_t sRainCollect;
 	uint8_t sSunShine;
+	uint16_t sSunLux;
 	float sPM25;
 	uint8_t sUV;
 	//uint8_t sLedState;
@@ -62,7 +63,7 @@ struct WeatherStationMsg
 
 	void setup() {
 		Serial.begin(9600);
-		mySerial.begin(115200);
+		mySerial.begin(9600);
 		Serial.println("WeatherStation test!");
 		analogReference(DEFAULT);
 		dht.begin();
@@ -82,16 +83,9 @@ struct WeatherStationMsg
 	}
 
 	void loop() {
-  // Wait a few seconds between measurements.
-
-
-	  // Reading temperature or humidity takes about 250 milliseconds!
-	  // Sensor readings may also be up to 2 seconds 'old' (its a very slow sensor)
-
-	  // sent interval min 1s
 	  
 	  unsigned long nowTime = millis();
-	  if(abs(nowTime - sentTime) > 1000){
+	  if(abs(nowTime - sentTime) > 5000){ 
 	  	updateWeatherMsg();
 	  	if(updateFlag == 1){
 	  	  // unsigned long nowTime = millis();
@@ -104,54 +98,62 @@ struct WeatherStationMsg
 	  }
 	  
 
-	  if(mySerial.available()){
+	if(mySerial.available()){
 	  	uint8_t rcvLen = mySerial.available();
-	  	uint8_t rcvMsgBuf[MSGMAXRCVLEN];
+	  	Serial.println(rcvLen);
+	  	
 	  	if(rcvLen == MSGMAXRCVLEN){
 	  		mySerial.readBytes(rcvMsgBuf, rcvLen);
+
 	  		if(decodeMsg(rcvMsgBuf)) {
 
 	  	  			//updateWeatherMsg();
-
-
 	  	  			encodeMsg();
 	  	  			mySerial.write(sentMsgBuf, MSGMAXSENTLEN);
-	  	  			}else {
+	  	  	}else {
 
 	  	  				//sent the resent msg to android app
-	  	  			}  
-	  	  		} 
-
 	  	  	}
+	  	  	while(mySerial.read() > 0){
+	  		    // statement
+	  		} 
 
-	  	  	pm25.setDustDensity(false);
-	  	  	delay(300);
-	  	  }
+	  	} else {
+	  		// flush the cache
+	  		while(mySerial.read() > 0){
+	  		    // statement
+	  		}
+	  	} 
 
-	  	  void addWindSignalCount() {
+	} 
+
+	pm25.setDustDensity(false);
+	delay(300);
+}
+
+	void addWindSignalCount() {
 	  	  	delayMicroseconds(200);
 	  	  	if(digitalRead(WINDSPDPIN)) {
 	  	  		weatherDev.setWindSignalCount();
 	  	  	}
-	  	  }
+	}
 
-	  	  void rainSignal() {
+	void rainSignal() {
 	  	  	delayMicroseconds(200);
 	  	  	if(digitalRead(RAINPIN)){
 	  	  		weatherDev.setRainCollect();
 
 	  	  	}
-	  	  }
+	}
 
-	  	  void updateWindSpeed() {
+	void updateWindSpeed() {
 
 	  	  	weatherDev.setWindSpeed(weatherDev.getWindSignalCount());
 	  	  	weatherDev.clearWindSignalCount();
 
+	}
 
-	  	  }
-
-	  	  void updateWeatherMsg() {
+	void updateWeatherMsg() {
 
 	  // updateWindSpeed();
 	  weatherStationMsg.sVoltage = 0;
@@ -202,9 +204,9 @@ struct WeatherStationMsg
 	  }
 
 
-	  Serial.print("PM25: ");
-	  Serial.print(dustDensity); 
-	  Serial.print(' ');
+	  // Serial.print("PM25: ");
+	  // Serial.print(dustDensity); 
+	  // Serial.print(' ');
 	  
 	  float tPressure = bmp280.readPressure();
 	  if(tPressure != weatherStationMsg.sPressure){
@@ -221,15 +223,23 @@ struct WeatherStationMsg
 
 	  	tUpdateFlag = 1;
 	  }
-	  Serial.print("Sunshine: ");
-	  Serial.println(weatherStationMsg.sSunShine);
+
+	  uint16_t tSunLux = weatherDev.getSunLux();
+	  if(tSunshine != weatherStationMsg.sSunLux){
+	      weatherStationMsg.sSunLux = tSunLux;
+	      Serial.print("SunLux: ");
+	      Serial.println(tSunLux);
+	      tUpdateFlag = 1;
+	  }
+	  // Serial.print("Sunshine: ");
+	  // Serial.println(weatherStationMsg.sSunShine);
 	  //uint16_t tSunshine = analogRead(2);
 	  // Serial.print("SunShine: ");
 	  // Serial.print(tSunshine);
 	  // Serial.print(' ');
 	  uint8_t tRainCollect = weatherDev.getRainCollect();
-	  Serial.print(tRainCollect);
-	  Serial.println();
+	  // Serial.print(tRainCollect);
+	  // Serial.println();
 	  if(tRainCollect != weatherStationMsg.sRainCollect){
 	  	weatherStationMsg.sRainCollect = tRainCollect;
 	  	tUpdateFlag = 1;
@@ -267,29 +277,40 @@ struct WeatherStationMsg
 //Format: Header(ffff) cmd(1B) sn(1B) flags(1B) action(1B) dev_statue(18B) chksum(1B)
 void encodeMsg() {
 
-	sentMsgBuf[0] = 0xff;
-	sentMsgBuf[1] = 0xff;  // msg header
-	sentMsgBuf[2] = 0x05; //cmd 
-	sentMsgBuf[3] = 0x00; //flags
-	sentMsgBuf[4] = 0x04; //actions
-	sentMsgBuf[5] = weatherStationMsg.sVoltage; //voltage
-	sentMsgBuf[6] = weatherStationMsg.sTemperature;
-	sentMsgBuf[7] = weatherStationMsg.sHumidity;
+	sentMsgBuf[0] = 0xff;  // msg header
+	sentMsgBuf[1] = 0x05; //cmd 
+	sentMsgBuf[2] = 0x00; //flags
+	sentMsgBuf[3] = 0x04; //actions
+	sentMsgBuf[4] = weatherStationMsg.sVoltage; //voltage
+	sentMsgBuf[5] = weatherStationMsg.sTemperature;
+	sentMsgBuf[6] = weatherStationMsg.sHumidity;
 	uint16_t tVal = (uint16_t) (weatherStationMsg.sPressure * 100);
 	
-	sentMsgBuf[8] = (uint8_t)(tVal >> 8);   // pressure high bits
-	sentMsgBuf[9] = (uint8_t)(tVal & 0xff); // pressure low bits
-	sentMsgBuf[10] = (uint8_t)(weatherStationMsg.sWindSpeed >> 8);
-	sentMsgBuf[11] = (uint8_t)(weatherStationMsg.sWindSpeed & 0xff);
-	sentMsgBuf[12] = weatherStationMsg.sWindDirection;
-	sentMsgBuf[13] = weatherStationMsg.sRainCollect;
-	sentMsgBuf[14] = weatherStationMsg.sSunShine;
+	sentMsgBuf[7] = (uint8_t)(tVal >> 8);   // pressure high bits
+	sentMsgBuf[8] = (uint8_t)(tVal & 0xff); // pressure low bits
+	sentMsgBuf[9] = (uint8_t)(weatherStationMsg.sWindSpeed >> 8);
+	sentMsgBuf[10] = (uint8_t)(weatherStationMsg.sWindSpeed & 0xff);
+	sentMsgBuf[11] = weatherStationMsg.sWindDirection;
+	sentMsgBuf[12] = weatherStationMsg.sRainCollect;
+	sentMsgBuf[13] = weatherStationMsg.sSunShine;
 	tVal = (uint16_t) (weatherStationMsg.sPM25 * 100);
-	sentMsgBuf[15] = (uint8_t)(tVal >> 8);
-	sentMsgBuf[16] = (uint8_t)(tVal & 0xff);
-	sentMsgBuf[17] = weatherStationMsg.sUV;
-	sentMsgBuf[18] = weatherStationMsg.sWarnValue;
-	sentMsgBuf[19] = weatherStationMsg.sFault;
+	sentMsgBuf[14] = (uint8_t)(tVal >> 8);
+	sentMsgBuf[15] = (uint8_t)(tVal & 0xff);
+	sentMsgBuf[16] = weatherStationMsg.sUV;
+	// sentMsgBuf[17] = weatherStationMsg.sWarnValue;
+	// sentMsgBuf[18] = weatherStationMsg.sFault;
+	sentMsgBuf[17] = 0x01;
+	sentMsgBuf[18] = 0x02;
+	tVal = (uint16_t) (weatherStationMsg.sSunLux);
+	sentMsgBuf[19] = (uint8_t)(tVal >> 8); //sunLux high bits
+	sentMsgBuf[20] = (uint8_t)(tVal & 0xff); // sunLux low bits
+	sentMsgBuf[21] = 0xff;
+	for(int i=0; i<22; i++){
+	    Serial.print(sentMsgBuf[i]);
+	    Serial.print(' ');
+
+	}
+	Serial.println();
 
 }
 //Format: Header(0xffff) cmd(1B) sn(1B) flags(1B) action(1B) Attr_flags(2B) Attr_vals(12B) 
